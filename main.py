@@ -30,9 +30,10 @@ class WhisperApp:
         BG_COLOR = "#282c34"
         TEXT_COLOR = "#abb2bf"
         BUTTON_BG = "#61afef"
-        BUTTON_FG = "white"
+        BUTTON_FG = "black" # Changed from "white" for better contrast
         BUTTON_HOVER = "#528bce"
         TEXT_AREA_BG = "#21252b"
+        DISABLED_FG = "#84888c"
 
         # Configure root window
         self.root.configure(bg=BG_COLOR)
@@ -48,7 +49,8 @@ class WhisperApp:
                              relief="flat")
         self.style.map("TButton",
             background=[("active", BUTTON_HOVER)],
-            relief=[("pressed", "sunken")])
+            relief=[("pressed", "sunken")],
+            foreground=[("disabled", DISABLED_FG)])
         
         self.style.configure("TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=self.default_font)
 
