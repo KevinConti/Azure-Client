@@ -28,7 +28,7 @@ class WhisperApp:
         
         # Define colors
         BG_COLOR = "#282c34"
-        TEXT_COLOR = "#abb2bf"
+        TEXT_COLOR = "white" # Changed from "#abb2bf" for better contrast
         BUTTON_BG = "#61afef"
         BUTTON_FG = "black" # Changed from "white" for better contrast
         BUTTON_HOVER = "#528bce"
@@ -100,7 +100,7 @@ class WhisperApp:
         self.start_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
         self.set_status_text("Recording...")
-        self.set_output_text("")
+        self.set_output_text("Recording...")
 
         self.record_thread = threading.Thread(target=self._record_audio)
         self.record_thread.start()
@@ -110,6 +110,7 @@ class WhisperApp:
         self.start_button.config(state=tk.NORMAL)
         self.stop_button.config(state=tk.DISABLED)
         self.set_status_text("Finished recording. Transcribing...")
+        self.set_output_text("Finished recording. Transcribing...")
 
     def _record_audio(self):
         audio = pyaudio.PyAudio()
