@@ -1,2 +1,5 @@
 # Ignore environment file
 .env
+
+# Ignore output file
+out.txt

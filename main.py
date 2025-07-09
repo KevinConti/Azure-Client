@@ -2,6 +2,8 @@ import os
 import argparse
 import pyaudio
 import wave
+import sys
+import threading
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 
@@ -34,7 +36,7 @@ def main():
     audio_file_path = args.audio_file
     
     if audio_file_path is None:
-        print("No audio file provided. Recording from microphone for 5 seconds...")
+        print("No audio file provided. Recording from microphone. Press Enter to stop...")
         audio_file_path = "temp_recording.wav"
         record_audio(audio_file_path)
         print(f"Recording saved to {audio_file_path}")
@@ -44,6 +46,12 @@ def main():
         transcription = transcribe_audio(client, deployment_name, audio_file_path)
         print("Transcription:")
         print(transcription)
+
+        # Export transcription to out.txt
+        with open("out.txt", "w") as f:
+            f.write(transcription)
+        print("\nTranscription saved to out.txt")
+        
     except FileNotFoundError:
         print(f"Error: The file '{args.audio_file}' was not found.")
     except Exception as e:
@@ -53,26 +61,33 @@ def main():
         if audio_file_path == "temp_recording.wav" and os.path.exists(audio_file_path):
             os.remove(audio_file_path)
 
-def record_audio(file_path, duration=5, sample_rate=44100, chunk=1024, channels=1, format=pyaudio.paInt16):
+def record_audio(file_path, sample_rate=44100, chunk=1024, channels=1, format=pyaudio.paInt16):
     """
-    Records audio from the microphone and saves it to a WAV file.
+    Records audio from the microphone until the user presses Enter.
     """
     audio = pyaudio.PyAudio()
-
+    frames = []
+    
     stream = audio.open(format=format,
                         channels=channels,
                         rate=sample_rate,
                         input=True,
                         frames_per_buffer=chunk)
 
-    print("Recording...")
-    frames = []
+    stop_recording = threading.Event()
 
-    for _ in range(0, int(sample_rate / chunk * duration)):
-        data = stream.read(chunk)
-        frames.append(data)
+    def _record():
+        while not stop_recording.is_set():
+            data = stream.read(chunk)
+            frames.append(data)
 
-    print("Finished recording.")
+    record_thread = threading.Thread(target=_record)
+    record_thread.start()
+
+    input()
+    stop_recording.set()
+    
+    record_thread.join()
 
     stream.stop_stream()
     stream.close()
