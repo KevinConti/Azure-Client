@@ -1,122 +1,144 @@
 import os
-import argparse
 import pyaudio
 import wave
 import sys
 import threading
+import tkinter as tk
+from tkinter import scrolledtext
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 
-def main():
-    # Load environment variables from .env file
-    load_dotenv()
+class WhisperApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Whisper Client")
 
-    # Get Azure OpenAI credentials from environment variables
-    api_key = os.getenv("AZURE_OPENAI_API_KEY")
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        self.is_recording = False
+        self.frames = []
+        self.audio_file_path = "temp_recording.wav"
 
-    # Check if credentials are set
-    if not all([api_key, azure_endpoint, deployment_name]):
-        print("Error: Please make sure to set AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, and AZURE_OPENAI_DEPLOYMENT_NAME in your .env file.")
-        return
+        # Load environment variables and initialize OpenAI client
+        load_dotenv()
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        self.deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 
-    # Initialize the Azure OpenAI client
-    client = AzureOpenAI(
-        api_key=api_key,
-        azure_endpoint=azure_endpoint,
-        api_version="2024-02-01" 
-    )
+        if not all([api_key, azure_endpoint, self.deployment_name]):
+            self.show_error("Please set Azure credentials in .env file.")
+            return
 
-    # Set up command-line argument parser
-    parser = argparse.ArgumentParser(description="Transcribe an audio file using Azure OpenAI's Whisper model.")
-    parser.add_argument("audio_file", nargs='?', default=None, help="Path to the audio file to transcribe. If not provided, will record from microphone.")
-    args = parser.parse_args()
-
-    audio_file_path = args.audio_file
-    
-    if audio_file_path is None:
-        print("No audio file provided. Recording from microphone. Press Enter to stop...")
-        audio_file_path = "temp_recording.wav"
-        record_audio(audio_file_path)
-        print(f"Recording saved to {audio_file_path}")
-
-    # Transcribe the audio file
-    try:
-        transcription = transcribe_audio(client, deployment_name, audio_file_path)
-        print("Transcription:")
-        print(transcription)
-
-        # Export transcription to out.txt
-        with open("out.txt", "w") as f:
-            f.write(transcription)
-        print("\nTranscription saved to out.txt")
-        
-    except FileNotFoundError:
-        print(f"Error: The file '{args.audio_file}' was not found.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-    finally:
-        # Clean up temporary recording file
-        if audio_file_path == "temp_recording.wav" and os.path.exists(audio_file_path):
-            os.remove(audio_file_path)
-
-def record_audio(file_path, sample_rate=44100, chunk=1024, channels=1, format=pyaudio.paInt16):
-    """
-    Records audio from the microphone until the user presses Enter.
-    """
-    audio = pyaudio.PyAudio()
-    frames = []
-    
-    stream = audio.open(format=format,
-                        channels=channels,
-                        rate=sample_rate,
-                        input=True,
-                        frames_per_buffer=chunk)
-
-    stop_recording = threading.Event()
-
-    def _record():
-        while not stop_recording.is_set():
-            data = stream.read(chunk)
-            frames.append(data)
-
-    record_thread = threading.Thread(target=_record)
-    record_thread.start()
-
-    input()
-    stop_recording.set()
-    
-    record_thread.join()
-
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-
-    with wave.open(file_path, 'wb') as wf:
-        wf.setnchannels(channels)
-        wf.setsampwidth(audio.get_sample_size(format))
-        wf.setframerate(sample_rate)
-        wf.writeframes(b''.join(frames))
-
-def transcribe_audio(client, deployment_name, file_path):
-    """
-    Transcribes an audio file using the Azure OpenAI Whisper service.
-
-    Args:
-        client: The AzureOpenAI client instance.
-        deployment_name: The name of the Whisper model deployment.
-        file_path: The path to the audio file.
-
-    Returns:
-        The transcribed text.
-    """
-    with open(file_path, "rb") as audio_file:
-        result = client.audio.transcriptions.create(
-            model=deployment_name,
-            file=audio_file
+        self.client = AzureOpenAI(
+            api_key=api_key,
+            azure_endpoint=azure_endpoint,
+            api_version="2024-02-01"
         )
-    return result.text
+
+        # UI Elements
+        button_frame = tk.Frame(root)
+        button_frame.pack(pady=10)
+
+        self.start_button = tk.Button(button_frame, text="Start Recording", command=self.start_recording)
+        self.start_button.pack(side=tk.LEFT, padx=5)
+
+        self.stop_button = tk.Button(button_frame, text="Stop Recording", command=self.stop_recording, state=tk.DISABLED)
+        self.stop_button.pack(side=tk.LEFT, padx=5)
+
+        self.copy_button = tk.Button(root, text="Copy to Clipboard", command=self.copy_to_clipboard)
+        self.copy_button.pack(pady=5)
+
+        self.output_text = scrolledtext.ScrolledText(root, wrap=tk.WORD, state=tk.DISABLED)
+        self.output_text.pack(pady=10, padx=10, expand=True, fill=tk.BOTH)
+        
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def start_recording(self):
+        self.is_recording = True
+        self.frames = []
+        self.start_button.config(state=tk.DISABLED)
+        self.stop_button.config(state=tk.NORMAL)
+        self.set_output_text("Recording...")
+
+        self.record_thread = threading.Thread(target=self._record_audio)
+        self.record_thread.start()
+
+    def stop_recording(self):
+        self.is_recording = False
+        self.start_button.config(state=tk.NORMAL)
+        self.stop_button.config(state=tk.DISABLED)
+        self.set_output_text("Finished recording. Transcribing...")
+
+    def _record_audio(self):
+        audio = pyaudio.PyAudio()
+        stream = audio.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024)
+        
+        while self.is_recording:
+            data = stream.read(1024)
+            self.frames.append(data)
+
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
+
+        self.save_and_transcribe()
+
+    def save_and_transcribe(self):
+        with wave.open(self.audio_file_path, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(pyaudio.PyAudio().get_sample_size(pyaudio.paInt16))
+            wf.setframerate(44100)
+            wf.writeframes(b''.join(self.frames))
+
+        transcribe_thread = threading.Thread(target=self._transcribe)
+        transcribe_thread.start()
+
+    def _transcribe(self):
+        try:
+            with open(self.audio_file_path, "rb") as audio_file:
+                result = self.client.audio.transcriptions.create(
+                    model=self.deployment_name,
+                    file=audio_file
+                )
+            self.set_output_text(result.text)
+            self.export_transcription(result.text)
+        except Exception as e:
+            self.show_error(f"An error occurred: {e}")
+        finally:
+            if os.path.exists(self.audio_file_path):
+                os.remove(self.audio_file_path)
+
+    def set_output_text(self, text):
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.delete(1.0, tk.END)
+        self.output_text.insert(tk.END, text)
+        self.output_text.config(state=tk.DISABLED)
+
+    def show_error(self, message):
+        self.set_output_text(f"Error: {message}")
+
+    def export_transcription(self, text):
+        with open("out.txt", "w") as f:
+            f.write(text)
+        print("\nTranscription saved to out.txt")
+
+    def copy_to_clipboard(self):
+        self.root.clipboard_clear()
+        text = self.output_text.get("1.0", tk.END)
+        self.root.clipboard_append(text.strip())
+        
+        # Optional: Give user feedback
+        original_text = self.copy_button.cget("text")
+        self.copy_button.config(text="Copied!")
+        self.root.after(2000, lambda: self.copy_button.config(text=original_text))
+
+    def on_closing(self):
+        if self.is_recording:
+            self.stop_recording()
+        self.root.destroy()
+
+def main():
+    root = tk.Tk()
+    app = WhisperApp(root)
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
