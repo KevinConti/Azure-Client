@@ -4,9 +4,10 @@ import wave
 import sys
 import threading
 import tkinter as tk
-from tkinter import scrolledtext, ttk, font
+from tkinter import scrolledtext, ttk, font, filedialog, messagebox
 from openai import AzureOpenAI
 from dotenv import load_dotenv
+import re
 
 class WhisperApp:
     def __init__(self, root):
@@ -27,54 +28,81 @@ class WhisperApp:
         self.default_font.configure(family="Segoe UI", size=10)
         
         # Define colors
-        BG_COLOR = "#282c34"
-        TEXT_COLOR = "white" # Changed from "#abb2bf" for better contrast
-        BUTTON_BG = "#61afef"
-        BUTTON_FG = "black" # Changed from "white" for better contrast
-        BUTTON_HOVER = "#528bce"
-        TEXT_AREA_BG = "#21252b"
-        DISABLED_FG = "#84888c"
+        self.BG_COLOR = "#282c34"
+        self.TEXT_COLOR = "white" # Changed from "#abb2bf" for better contrast
+        self.BUTTON_BG = "#61afef"
+        self.BUTTON_FG = "black" # Changed from "white" for better contrast
+        self.BUTTON_HOVER = "#528bce"
+        self.TEXT_AREA_BG = "#21252b"
+        self.DISABLED_FG = "#84888c"
 
         # Configure root window
-        self.root.configure(bg=BG_COLOR)
+        self.root.configure(bg=self.BG_COLOR)
 
         # Configure ttk styles
-        self.style.configure("TFrame", background=BG_COLOR)
+        self.style.configure("TFrame", background=self.BG_COLOR)
         self.style.configure("TButton", 
-                             background=BUTTON_BG, 
-                             foreground=BUTTON_FG, 
+                             background=self.BUTTON_BG, 
+                             foreground=self.BUTTON_FG, 
                              font=self.default_font, 
                              padding=10,
                              borderwidth=0,
                              relief="flat")
         self.style.map("TButton",
-            background=[("active", BUTTON_HOVER)],
+            background=[("active", self.BUTTON_HOVER)],
             relief=[("pressed", "sunken")],
-            foreground=[("disabled", DISABLED_FG)])
+            foreground=[("disabled", self.DISABLED_FG)])
         
-        self.style.configure("TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=self.default_font)
+        self.style.configure("TLabel", background=self.BG_COLOR, foreground=self.TEXT_COLOR, font=self.default_font)
 
         # Load environment variables and initialize OpenAI client
         load_dotenv()
-        api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        whisper_api_key = os.getenv("AZURE_OPENAI_WHISPER_API_KEY")
+        azure_whisper_endpoint = os.getenv("AZURE_OPENAI_WHISPER_ENDPOINT")
+        self.whisper_deployment = os.getenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
 
-        if not all([api_key, azure_endpoint, self.deployment_name]):
-            self.show_error("Please set Azure credentials in .env file.")
+        gpt_api_key = os.getenv("AZURE_OPENAI_GPT_API_KEY")
+        azure_gpt_endpoint = os.getenv("AZURE_OPENAI_GPT_ENDPOINT")
+        self.gpt_deployment = os.getenv("AZURE_OPENAI_GPT_DEPLOYMENT")
+
+        if not all([whisper_api_key, azure_whisper_endpoint, self.whisper_deployment, gpt_api_key, self.gpt_deployment, azure_gpt_endpoint]):
+            self.show_error("Please set Azure credentials and deployment names in .env file.\nRequired: AZURE_OPENAI_WHISPER_API_KEY, AZURE_OPENAI_WHISPER_ENDPOINT, AZURE_OPENAI_WHISPER_DEPLOYMENT, AZURE_OPENAI_GPT_API_KEY, AZURE_OPENAI_GPT_DEPLOYMENT, AZURE_OPENAI_GPT_ENDPOINT")
             return
 
-        self.client = AzureOpenAI(
-            api_key=api_key,
-            azure_endpoint=azure_endpoint,
-            api_version="2024-02-01"
+        self.whisper_client = AzureOpenAI(
+            api_key=whisper_api_key,
+            azure_endpoint=azure_whisper_endpoint,
+            api_version="2024-12-01-preview"
+        )
+        self.gpt_client = AzureOpenAI(
+            api_key=gpt_api_key,
+            azure_endpoint=azure_gpt_endpoint,
+            api_version="2025-01-01-preview"
         )
 
         # --- UI Elements ---
-        main_frame = ttk.Frame(root, padding="20 10 20 10")
-        main_frame.pack(expand=True, fill=tk.BOTH)
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
 
-        button_frame = ttk.Frame(main_frame)
+        # Recording Tab
+        self.recording_frame = ttk.Frame(self.notebook, padding="20 10 20 10")
+        self.notebook.add(self.recording_frame, text="Voice Recording")
+
+        # Meeting Notes Tab
+        self.notes_frame = ttk.Frame(self.notebook, padding="20 10 20 10")
+        self.notebook.add(self.notes_frame, text="Meeting Notes")
+
+        self.setup_recording_tab()
+        self.setup_meeting_notes_tab()
+        
+        self.status_bar = ttk.Label(root, text="Ready", padding="10 5 10 5")
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def setup_recording_tab(self):
+        button_frame = ttk.Frame(self.recording_frame)
         button_frame.pack(pady=10)
 
         self.start_button = ttk.Button(button_frame, text="Start Recording", command=self.start_recording)
@@ -83,16 +111,40 @@ class WhisperApp:
         self.stop_button = ttk.Button(button_frame, text="Stop Recording", command=self.stop_recording, style="TButton", state=tk.DISABLED)
         self.stop_button.pack(side=tk.LEFT, padx=5)
 
-        self.copy_button = ttk.Button(main_frame, text="Copy to Clipboard", command=self.copy_to_clipboard)
+        self.copy_button = ttk.Button(self.recording_frame, text="Copy to Clipboard", command=self.copy_to_clipboard)
         self.copy_button.pack(pady=5)
 
-        self.output_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, state=tk.DISABLED, bg=TEXT_AREA_BG, fg=TEXT_COLOR, font=self.default_font, relief="flat", borderwidth=2)
+        self.output_text = scrolledtext.ScrolledText(self.recording_frame, wrap=tk.WORD, state=tk.DISABLED, bg=self.TEXT_AREA_BG, fg=self.TEXT_COLOR, font=self.default_font, relief="flat", borderwidth=2)
         self.output_text.pack(pady=10, padx=10, expand=True, fill=tk.BOTH)
-        
-        self.status_bar = ttk.Label(root, text="Ready", padding="10 5 10 5")
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+    def setup_meeting_notes_tab(self):
+        # Upload section
+        upload_frame = ttk.Frame(self.notes_frame)
+        upload_frame.pack(pady=10, fill=tk.X)
+
+        ttk.Label(upload_frame, text="Upload VTT Transcript File:").pack(anchor=tk.W, pady=(0, 5))
+        
+        file_select_frame = ttk.Frame(upload_frame)
+        file_select_frame.pack(fill=tk.X, pady=(0, 10))
+
+        self.file_path_var = tk.StringVar()
+        self.file_path_entry = ttk.Entry(file_select_frame, textvariable=self.file_path_var, state="readonly")
+        self.file_path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+
+        self.browse_button = ttk.Button(file_select_frame, text="Browse", command=self.browse_vtt_file)
+        self.browse_button.pack(side=tk.RIGHT)
+
+        # Generate notes button
+        self.generate_notes_button = ttk.Button(upload_frame, text="Generate Meeting Notes", command=self.generate_meeting_notes, state=tk.DISABLED)
+        self.generate_notes_button.pack(pady=5)
+
+        # Output section
+        self.notes_output = scrolledtext.ScrolledText(self.notes_frame, wrap=tk.WORD, state=tk.DISABLED, bg=self.TEXT_AREA_BG, fg=self.TEXT_COLOR, font=self.default_font, relief="flat", borderwidth=2)
+        self.notes_output.pack(pady=10, padx=10, expand=True, fill=tk.BOTH)
+
+        # Copy notes button
+        self.copy_notes_button = ttk.Button(self.notes_frame, text="Copy Notes to Clipboard", command=self.copy_notes_to_clipboard)
+        self.copy_notes_button.pack(pady=5)
 
     def start_recording(self):
         self.is_recording = True
@@ -139,8 +191,8 @@ class WhisperApp:
     def _transcribe(self):
         try:
             with open(self.audio_file_path, "rb") as audio_file:
-                result = self.client.audio.transcriptions.create(
-                    model=self.deployment_name,
+                result = self.whisper_client.audio.transcriptions.create(
+                    model=self.whisper_deployment,
                     file=audio_file
                 )
             self.set_output_text(result.text)
@@ -181,6 +233,113 @@ class WhisperApp:
 
     def set_status_text(self, text):
         self.status_bar.config(text=text)
+
+    def browse_vtt_file(self):
+        file_path = filedialog.askopenfilename(
+            title="Select VTT Transcript File",
+            filetypes=[("VTT files", "*.vtt"), ("All files", "*.*")]
+        )
+        if file_path:
+            self.file_path_var.set(file_path)
+            self.generate_notes_button.config(state=tk.NORMAL)
+
+    def parse_vtt_file(self, file_path):
+        """Parse VTT file and extract the transcript text"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            
+            # Remove VTT header and timestamps, keep only the text
+            lines = content.split('\n')
+            transcript_lines = []
+            
+            for line in lines:
+                line = line.strip()
+                # Skip VTT header, empty lines, and timestamp lines
+                if (line and 
+                    not line.startswith('WEBVTT') and 
+                    not re.match(r'^\d+$', line) and  # Skip cue numbers
+                    not re.match(r'^[\d:.,\s-]+-->', line)):  # Skip timestamp lines
+                    transcript_lines.append(line)
+            
+            return ' '.join(transcript_lines)
+        except Exception as e:
+            raise Exception(f"Error reading VTT file: {str(e)}")
+
+    def generate_meeting_notes(self):
+        file_path = self.file_path_var.get()
+        if not file_path:
+            messagebox.showerror("Error", "Please select a VTT file first.")
+            return
+
+        self.generate_notes_button.config(state=tk.DISABLED)
+        self.set_status_text("Generating meeting notes...")
+        self.set_notes_output("Generating meeting notes...")
+
+        # Run in separate thread to avoid blocking UI
+        notes_thread = threading.Thread(target=self._generate_meeting_notes, args=(file_path,))
+        notes_thread.start()
+
+    def _generate_meeting_notes(self, file_path):
+        try:
+            # Parse VTT file
+            transcript = self.parse_vtt_file(file_path)
+            
+            if not transcript.strip():
+                raise Exception("No transcript text found in the VTT file.")
+
+            # Create meeting notes prompt
+            prompt = f"""Please analyze the following meeting transcript and create comprehensive meeting notes. 
+
+The notes should include:
+1. **Meeting Summary** - Brief overview of the main topics discussed
+2. **Key Discussion Points** - Main topics and decisions made
+3. **Action Items** - Specific tasks, assignments, and deadlines mentioned
+4. **Important Decisions** - Key decisions made during the meeting
+5. **Follow-up Items** - Things to be addressed in future meetings
+
+Please format the output in a clear, professional manner suitable for sharing with meeting participants.
+
+Transcript:
+{transcript}"""
+
+            # Generate meeting notes using Azure OpenAI
+            response = self.gpt_client.chat.completions.create(
+                model=self.gpt_deployment,
+                messages=[
+                    {"role": "system", "content": "You are a professional meeting notes assistant. Create clear, organized, and actionable meeting notes from transcripts."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,  # Lower temperature for more focused output
+                max_tokens=2000
+            )
+
+            meeting_notes = response.choices[0].message.content
+            self.set_notes_output(meeting_notes)
+            self.set_status_text("Meeting notes generated successfully.")
+            
+        except Exception as e:
+            self.show_notes_error(f"An error occurred: {e}")
+        finally:
+            # Re-enable the button
+            self.root.after(0, lambda: self.generate_notes_button.config(state=tk.NORMAL))
+
+    def set_notes_output(self, text):
+        self.notes_output.config(state=tk.NORMAL)
+        self.notes_output.delete(1.0, tk.END)
+        self.notes_output.insert(tk.END, text)
+        self.notes_output.config(state=tk.DISABLED)
+
+    def show_notes_error(self, message):
+        self.set_notes_output(f"Error: {message}")
+        self.set_status_text("Error occurred while generating notes.")
+
+    def copy_notes_to_clipboard(self):
+        self.root.clipboard_clear()
+        text = self.notes_output.get("1.0", tk.END)
+        self.root.clipboard_append(text.strip())
+        self.set_status_text("Meeting notes copied to clipboard!")
+        self.root.after(2000, lambda: self.set_status_text("Ready"))
 
 def main():
     root = tk.Tk()
