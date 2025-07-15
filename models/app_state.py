@@ -135,9 +135,9 @@ class AppState:
     
     def can_ask_question(self) -> bool:
         """Check if question asking is possible."""
-        return (self.mode == AppMode.QUESTION_ANSWERING and 
+        return ((self.mode == AppMode.QUESTION_ANSWERING or self.mode == AppMode.NOTES) and 
                 not self.is_busy() and
-                self.selected_file_path is not None)
+                (self.selected_file_path is not None or self.current_transcript is not None))
     
     def reset(self) -> None:
         """Reset application state to initial values."""

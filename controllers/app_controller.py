@@ -311,6 +311,9 @@ class AppController:
             return False
         
         try:
+            # Switch to question answering mode
+            self.app_state.set_mode(AppMode.QUESTION_ANSWERING)
+            
             transcript = self.app_state.current_transcript
             if not transcript:
                 # Try to load from selected file
