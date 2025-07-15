@@ -8,6 +8,12 @@ from tkinter import scrolledtext, ttk, font, filedialog, messagebox
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 import re
+from prompts import (
+    MEETING_NOTES_SYSTEM_MESSAGE,
+    QUESTION_ANSWERING_SYSTEM_MESSAGE,
+    get_meeting_notes_prompt,
+    get_question_answering_prompt
+)
 
 class WhisperApp:
     def __init__(self, root):
@@ -317,25 +323,13 @@ class WhisperApp:
                 raise Exception("No transcript text found in the VTT file.")
 
             # Create meeting notes prompt
-            prompt = f"""Please analyze the following meeting transcript and create comprehensive meeting notes. 
-
-The notes should include:
-1. **Meeting Summary** - Brief overview of the main topics discussed
-2. **Key Discussion Points** - Main topics and decisions made
-3. **Action Items** - Specific tasks, assignments, and deadlines mentioned
-4. **Important Decisions** - Key decisions made during the meeting
-5. **Follow-up Items** - Things to be addressed in future meetings
-
-Please format the output in a clear, professional manner suitable for sharing with meeting participants.
-
-Transcript:
-{transcript}"""
+            prompt = get_meeting_notes_prompt(transcript)
 
             # Generate meeting notes using Azure OpenAI
             response = self.gpt_client.chat.completions.create(
                 model=self.gpt_deployment,
                 messages=[
-                    {"role": "system", "content": "You are a professional meeting notes assistant. Create clear, organized, and actionable meeting notes from transcripts."},
+                    {"role": "system", "content": MEETING_NOTES_SYSTEM_MESSAGE},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,  # Lower temperature for more focused output
@@ -406,20 +400,13 @@ Transcript:
                 raise Exception("No transcript text found in the VTT file.")
 
             # Create question prompt
-            prompt = f"""You are an AI assistant helping to analyze a meeting transcript. Please answer the following question based on the transcript content provided.
-
-Question: {question}
-
-Transcript:
-{transcript}
-
-Please provide a clear, accurate answer based on the information available in the transcript. If the transcript doesn't contain enough information to answer the question, please indicate that clearly."""
+            prompt = get_question_answering_prompt(question, transcript)
 
             # Generate response using Azure OpenAI
             response = self.gpt_client.chat.completions.create(
                 model=self.gpt_deployment,
                 messages=[
-                    {"role": "system", "content": "You are a helpful AI assistant that analyzes meeting transcripts and answers questions about their content. Provide accurate, clear, and concise responses based on the information available."},
+                    {"role": "system", "content": QUESTION_ANSWERING_SYSTEM_MESSAGE},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.2,  # Lower temperature for more factual responses
