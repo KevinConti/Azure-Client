@@ -18,6 +18,7 @@ class WhisperApp:
         self.is_recording = False
         self.frames = []
         self.audio_file_path = "temp_recording.wav"
+        self.current_transcript = None  # Store parsed transcript
 
         # --- Style Configuration ---
         self.style = ttk.Style(self.root)
@@ -134,16 +135,36 @@ class WhisperApp:
         self.browse_button = ttk.Button(file_select_frame, text="Browse", command=self.browse_vtt_file)
         self.browse_button.pack(side=tk.RIGHT)
 
-        # Generate notes button
-        self.generate_notes_button = ttk.Button(upload_frame, text="Generate Meeting Notes", command=self.generate_meeting_notes, state=tk.DISABLED)
-        self.generate_notes_button.pack(pady=5)
+        # Buttons frame
+        buttons_frame = ttk.Frame(upload_frame)
+        buttons_frame.pack(pady=5, fill=tk.X)
+
+        self.generate_notes_button = ttk.Button(buttons_frame, text="Generate Meeting Notes", command=self.generate_meeting_notes, state=tk.DISABLED)
+        self.generate_notes_button.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Question section
+        question_frame = ttk.Frame(self.notes_frame)
+        question_frame.pack(pady=10, fill=tk.X)
+
+        ttk.Label(question_frame, text="Ask a question about the transcript:").pack(anchor=tk.W, pady=(0, 5))
+        
+        question_input_frame = ttk.Frame(question_frame)
+        question_input_frame.pack(fill=tk.X, pady=(0, 5))
+
+        self.question_var = tk.StringVar()
+        self.question_entry = ttk.Entry(question_input_frame, textvariable=self.question_var, state=tk.DISABLED)
+        self.question_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.question_entry.bind('<Return>', self.ask_question_enter)
+
+        self.ask_question_button = ttk.Button(question_input_frame, text="Ask Question", command=self.ask_question, state=tk.DISABLED)
+        self.ask_question_button.pack(side=tk.RIGHT)
 
         # Output section
         self.notes_output = scrolledtext.ScrolledText(self.notes_frame, wrap=tk.WORD, state=tk.DISABLED, bg=self.TEXT_AREA_BG, fg=self.TEXT_COLOR, font=self.default_font, relief="flat", borderwidth=2)
         self.notes_output.pack(pady=10, padx=10, expand=True, fill=tk.BOTH)
 
         # Copy notes button
-        self.copy_notes_button = ttk.Button(self.notes_frame, text="Copy Notes to Clipboard", command=self.copy_notes_to_clipboard)
+        self.copy_notes_button = ttk.Button(self.notes_frame, text="Copy Response to Clipboard", command=self.copy_notes_to_clipboard)
         self.copy_notes_button.pack(pady=5)
 
     def start_recording(self):
@@ -242,6 +263,10 @@ class WhisperApp:
         if file_path:
             self.file_path_var.set(file_path)
             self.generate_notes_button.config(state=tk.NORMAL)
+            self.question_entry.config(state=tk.NORMAL)
+            self.ask_question_button.config(state=tk.NORMAL)
+            # Clear previous transcript when new file is selected
+            self.current_transcript = None
 
     def parse_vtt_file(self, file_path):
         """Parse VTT file and extract the transcript text"""
@@ -282,8 +307,11 @@ class WhisperApp:
 
     def _generate_meeting_notes(self, file_path):
         try:
-            # Parse VTT file
-            transcript = self.parse_vtt_file(file_path)
+            # Parse VTT file and store transcript
+            if self.current_transcript is None:
+                self.current_transcript = self.parse_vtt_file(file_path)
+            
+            transcript = self.current_transcript
             
             if not transcript.strip():
                 raise Exception("No transcript text found in the VTT file.")
@@ -340,6 +368,78 @@ Transcript:
         self.root.clipboard_append(text.strip())
         self.set_status_text("Meeting notes copied to clipboard!")
         self.root.after(2000, lambda: self.set_status_text("Ready"))
+
+    def ask_question_enter(self, event):
+        """Handle Enter key press in question entry"""
+        self.ask_question()
+
+    def ask_question(self):
+        file_path = self.file_path_var.get()
+        question = self.question_var.get().strip()
+        
+        if not file_path:
+            messagebox.showerror("Error", "Please select a VTT file first.")
+            return
+            
+        if not question:
+            messagebox.showerror("Error", "Please enter a question.")
+            return
+
+        self.ask_question_button.config(state=tk.DISABLED)
+        self.question_entry.config(state=tk.DISABLED)
+        self.set_status_text("Processing your question...")
+        self.set_notes_output("Processing your question...")
+
+        # Run in separate thread to avoid blocking UI
+        question_thread = threading.Thread(target=self._process_question, args=(file_path, question))
+        question_thread.start()
+
+    def _process_question(self, file_path, question):
+        try:
+            # Use stored transcript or parse VTT file if not already parsed
+            if self.current_transcript is None:
+                self.current_transcript = self.parse_vtt_file(file_path)
+            
+            transcript = self.current_transcript
+            
+            if not transcript.strip():
+                raise Exception("No transcript text found in the VTT file.")
+
+            # Create question prompt
+            prompt = f"""You are an AI assistant helping to analyze a meeting transcript. Please answer the following question based on the transcript content provided.
+
+Question: {question}
+
+Transcript:
+{transcript}
+
+Please provide a clear, accurate answer based on the information available in the transcript. If the transcript doesn't contain enough information to answer the question, please indicate that clearly."""
+
+            # Generate response using Azure OpenAI
+            response = self.gpt_client.chat.completions.create(
+                model=self.gpt_deployment,
+                messages=[
+                    {"role": "system", "content": "You are a helpful AI assistant that analyzes meeting transcripts and answers questions about their content. Provide accurate, clear, and concise responses based on the information available."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,  # Lower temperature for more factual responses
+                max_tokens=1500
+            )
+
+            answer = response.choices[0].message.content
+            
+            # Format the response with the question
+            formatted_response = f"Question: {question}\n\n{answer}"
+            
+            self.set_notes_output(formatted_response)
+            self.set_status_text("Question answered successfully.")
+            
+        except Exception as e:
+            self.show_notes_error(f"An error occurred: {e}")
+        finally:
+            # Re-enable the controls
+            self.root.after(0, lambda: self.ask_question_button.config(state=tk.NORMAL))
+            self.root.after(0, lambda: self.question_entry.config(state=tk.NORMAL))
 
 def main():
     root = tk.Tk()
