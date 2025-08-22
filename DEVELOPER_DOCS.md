@@ -207,6 +207,92 @@ tests/
     └── ...
 ```
 
+### Docker Development Workflow
+
+#### Container-Based Development
+
+1. **Setup Development Environment**:
+```bash
+# Create and configure environment
+cp .env.sample .env
+nano .env  # Configure Azure OpenAI credentials
+
+# Enable GUI access (Linux/macOS)
+xhost +local:docker
+
+# Start development container
+docker-compose --profile dev up --build azure-whisper-client-dev
+```
+
+2. **Development Commands**:
+```bash
+# Access development container shell
+docker-compose run azure-whisper-client-dev bash
+
+# Run tests in container
+docker-compose run azure-whisper-client-dev python -m pytest tests/ -v
+
+# Code quality checks
+docker-compose run azure-whisper-client-dev black --check .
+docker-compose run azure-whisper-client-dev flake8 .
+
+# Install new dependencies
+docker-compose run azure-whisper-client-dev pip install new-package
+# Then update requirements.txt and rebuild
+```
+
+3. **Container Management**:
+```bash
+# View container logs
+docker-compose logs -f azure-whisper-client-dev
+
+# Restart development container
+docker-compose restart azure-whisper-client-dev
+
+# Clean up containers and volumes
+docker-compose down -v
+
+# Rebuild containers
+docker-compose build --no-cache
+```
+
+#### Debugging in Docker
+
+1. **Interactive Debugging**:
+```bash
+# Run container with bash shell
+docker-compose run azure-whisper-client-dev bash
+
+# Python debugger in container
+docker-compose run azure-whisper-client-dev python -m pdb main.py
+```
+
+2. **Log Analysis**:
+```bash
+# Follow application logs
+docker-compose logs -f azure-whisper-client-dev
+
+# Container resource usage
+docker stats azure-whisper-client-dev
+
+# Container process list
+docker-compose exec azure-whisper-client-dev ps aux
+```
+
+#### Production vs Development Containers
+
+**Development Container Features**:
+- Source code mounted as volume for hot-reload
+- Development dependencies included
+- Interactive shell access
+- Debug-friendly configuration
+
+**Production Container Features**:
+- Optimized layer caching
+- Minimal attack surface
+- Non-root user execution
+- Health checks enabled
+
 ## Configuration Management
 
 ### Environment Variables

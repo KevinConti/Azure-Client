@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  azure-whisper-client:
+    build: .
+    container_name: azure-whisper-client
+    environment:
+      # Azure OpenAI Whisper Configuration
+      - AZURE_OPENAI_WHISPER_API_KEY=${AZURE_OPENAI_WHISPER_API_KEY}
+      - AZURE_OPENAI_WHISPER_ENDPOINT=${AZURE_OPENAI_WHISPER_ENDPOINT}
+      - AZURE_OPENAI_WHISPER_DEPLOYMENT=${AZURE_OPENAI_WHISPER_DEPLOYMENT}
+      
+      # Azure OpenAI GPT Configuration  
+      - AZURE_OPENAI_GPT_API_KEY=${AZURE_OPENAI_GPT_API_KEY}
+      - AZURE_OPENAI_GPT_ENDPOINT=${AZURE_OPENAI_GPT_ENDPOINT}
+      - AZURE_OPENAI_GPT_DEPLOYMENT=${AZURE_OPENAI_GPT_DEPLOYMENT}
+      
+      # Display configuration for GUI
+      - DISPLAY=${DISPLAY:-:0}
+    
+    volumes:
+      # X11 forwarding for GUI
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      
+      # Audio device access
+      - /dev/snd:/dev/snd
+      
+      # Mount application data (optional - for development)
+      - ./data:/app/data
+    
+    devices:
+      # Audio device access
+      - /dev/snd
+    
+    network_mode: host
+    
+    # Ensure GUI can be displayed
+    privileged: false
+    
+    # Add capabilities for audio
+    cap_add:
+      - SYS_ADMIN
+    
+    # Restart policy
+    restart: unless-stopped
+
+  # Development service with hot-reload capabilities
+  azure-whisper-client-dev:
+    build: .
+    container_name: azure-whisper-client-dev
+    environment:
+      # Azure OpenAI Configuration (same as above)
+      - AZURE_OPENAI_WHISPER_API_KEY=${AZURE_OPENAI_WHISPER_API_KEY}
+      - AZURE_OPENAI_WHISPER_ENDPOINT=${AZURE_OPENAI_WHISPER_ENDPOINT}
+      - AZURE_OPENAI_WHISPER_DEPLOYMENT=${AZURE_OPENAI_WHISPER_DEPLOYMENT}
+      - AZURE_OPENAI_GPT_API_KEY=${AZURE_OPENAI_GPT_API_KEY}
+      - AZURE_OPENAI_GPT_ENDPOINT=${AZURE_OPENAI_GPT_ENDPOINT}
+      - AZURE_OPENAI_GPT_DEPLOYMENT=${AZURE_OPENAI_GPT_DEPLOYMENT}
+      - DISPLAY=${DISPLAY:-:0}
+    
+    volumes:
+      # X11 forwarding
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      
+      # Audio access
+      - /dev/snd:/dev/snd
+      
+      # Mount entire source code for development
+      - .:/app
+      
+    devices:
+      - /dev/snd
+    
+    network_mode: host
+    cap_add:
+      - SYS_ADMIN
+    
+    # Override command for development
+    command: ["python", "main.py"]
+    
+    profiles:
+      - dev

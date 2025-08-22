@@ -31,7 +31,7 @@ This document provides guidelines for maintaining the Azure OpenAI Whisper Clien
 
 ### Dependency Management
 
-#### Regular Updates
+#### Local Development Updates
 ```bash
 # Check for outdated packages
 pip list --outdated
@@ -43,10 +43,29 @@ pip install --upgrade package_name
 pip install --upgrade -r requirements.txt
 ```
 
+#### Docker Container Updates
+```bash
+# Update base image and rebuild
+docker-compose build --no-cache --pull
+
+# Update Python dependencies in container
+docker-compose run azure-whisper-client pip list --outdated
+docker-compose run azure-whisper-client pip install --upgrade package_name
+
+# Rebuild after dependency updates
+docker-compose build
+```
+
 #### Security Updates
 ```bash
-# Check for security vulnerabilities
+# Local security checks
 pip audit
+
+# Container security checks
+docker-compose run azure-whisper-client pip audit
+
+# Scan container for vulnerabilities
+docker scout cves azure-whisper-client
 
 # Generate updated requirements.txt
 pip freeze > requirements.txt
@@ -57,6 +76,54 @@ pip freeze > requirements.txt
 - Pin critical dependencies to specific versions
 - Test thoroughly before updating major versions
 - Maintain compatibility with Python 3.8+
+- Tag Docker images with version numbers
+
+### Container Maintenance
+
+#### Image Management
+```bash
+# Clean up unused images
+docker image prune -f
+
+# Remove old versions (keep last 3)
+docker images | grep azure-whisper-client | tail -n +4 | awk '{print $3}' | xargs docker rmi
+
+# Check image sizes
+docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+
+# Optimize Dockerfile layers
+docker history azure-whisper-client
+```
+
+#### Container Health Monitoring
+```bash
+# Check container status
+docker-compose ps
+
+# Monitor resource usage
+docker stats azure-whisper-client
+
+# Check container logs
+docker-compose logs --tail=100 azure-whisper-client
+
+# Inspect container configuration
+docker inspect azure-whisper-client
+```
+
+#### Storage Management
+```bash
+# Clean up volumes
+docker volume prune -f
+
+# Check disk usage
+docker system df
+
+# Complete cleanup (use with caution)
+docker system prune -a -f
+
+# Backup persistent data
+docker-compose exec azure-whisper-client tar -czf /app/backup.tar.gz /app/data
+```
 
 ### Code Quality Maintenance
 
@@ -295,7 +362,48 @@ def health_check():
 - Maintain changelog for each release
 - Document breaking changes
 
-### Deployment Checklist
+### Docker Deployment
+
+#### Container Registry Management
+```bash
+# Tag image for registry
+docker tag azure-whisper-client:latest registry.example.com/azure-whisper-client:v1.0.0
+
+# Push to registry
+docker push registry.example.com/azure-whisper-client:v1.0.0
+
+# Pull specific version
+docker pull registry.example.com/azure-whisper-client:v1.0.0
+```
+
+#### Production Deployment
+```bash
+# Production deployment
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Update production deployment
+docker-compose pull
+docker-compose up -d --no-deps azure-whisper-client
+
+# Scale application (if load balancing)
+docker-compose up -d --scale azure-whisper-client=3
+```
+
+#### Container Health Monitoring
+```bash
+# Monitor container health
+docker-compose ps
+docker-compose logs azure-whisper-client
+
+# Container resource usage
+docker stats azure-whisper-client
+
+# System resource monitoring
+docker system df
+docker system prune -f  # Clean up unused resources
+```
+
+### Traditional Deployment Checklist
 - [ ] Run full test suite
 - [ ] Update version numbers
 - [ ] Update documentation
@@ -306,13 +414,43 @@ def health_check():
 - [ ] Deploy to production
 - [ ] Monitor post-deployment
 
+### Docker Deployment Checklist
+- [ ] Build and test containers locally
+- [ ] Update container tags and versions
+- [ ] Push images to container registry
+- [ ] Update environment configurations
+- [ ] Backup current container state
+- [ ] Deploy to staging environment
+- [ ] Validate containerized deployment
+- [ ] Deploy to production
+- [ ] Monitor container health and logs
+- [ ] Verify GUI and audio functionality
+
 ### Rollback Procedures
+
+#### Traditional Rollback
 1. **Identify Issue**: Monitor logs and user reports
 2. **Assess Impact**: Determine severity and affected users
 3. **Execute Rollback**: Revert to previous stable version
 4. **Verify Rollback**: Confirm system stability
 5. **Investigate**: Analyze root cause of the issue
 6. **Document**: Record incident and lessons learned
+
+#### Docker Rollback
+```bash
+# Quick rollback to previous version
+docker-compose down
+docker tag azure-whisper-client:previous azure-whisper-client:latest
+docker-compose up -d
+
+# Rollback using specific version
+docker-compose down
+docker run -d --name azure-whisper-client registry.example.com/azure-whisper-client:v1.0.0
+
+# Verify rollback
+docker-compose logs azure-whisper-client
+docker-compose ps
+```
 
 ## 📈 Performance Optimization
 
