@@ -37,16 +37,74 @@ This application follows a layered architecture with clear separation of concern
 
 ## 📋 Prerequisites
 
-- Python 3.8 or higher
+- Python 3.8 or higher (for local installation)
+- **OR** Docker and Docker Compose (for containerized deployment)
 - Azure OpenAI account with Whisper and GPT deployments
 - Microphone access (for recording features)
 
 ## 🛠️ Setup
 
+### Option 1: Docker Setup (Recommended)
+
 1. **Clone the repository:**
    ```bash
    git clone <repository-url>
-   cd whisper-client
+   cd Azure-Client
+   ```
+
+2. **Quick start with Docker:**
+   
+   **Linux/macOS:**
+   ```bash
+   # Copy environment template
+   cp .env.sample .env
+   
+   # Edit .env with your Azure OpenAI credentials
+   nano .env
+   
+   # Run the application (this will build and start the container)
+   ./run-docker.sh
+   ```
+   
+   **Windows (PowerShell):**
+   ```powershell
+   # Copy environment template
+   Copy-Item .env.sample .env
+   
+   # Edit .env with your Azure OpenAI credentials
+   notepad .env
+   
+   # Run the application (this will build and start the container)
+   .\run-docker.ps1
+   ```
+
+3. **Alternative Docker commands:**
+   ```bash
+   # Manual setup
+   docker compose up --build
+   
+   # Development mode with hot-reload
+   docker compose --profile dev up --build azure-whisper-client-dev
+   
+   # Production deployment
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+   ```
+
+4. **Enable GUI access (Linux/macOS):**
+   ```bash
+   # Allow Docker to access X11 display
+   xhost +local:docker
+   
+   # Run the application
+   docker-compose up
+   ```
+
+### Option 2: Local Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd Azure-Client
    ```
 
 2. **Create a virtual environment:**
@@ -75,9 +133,97 @@ This application follows a layered architecture with clear separation of concern
 
 ### Starting the Application
 
+#### With Docker:
+
+**Linux/macOS:**
+```bash
+# Using helper script - Production mode
+./run-docker.sh
+
+# Using helper script - Development mode
+./run-docker.sh dev
+
+# Manual commands
+docker-compose up                                              # Production
+docker-compose --profile dev up azure-whisper-client-dev     # Development
+```
+
+**Windows (PowerShell):**
+```powershell
+# Using helper script - Production mode
+.\run-docker.ps1
+
+# Using helper script - Development mode
+.\run-docker.ps1 dev
+
+# Manual commands
+docker-compose up                                              # Production
+docker-compose --profile dev up azure-whisper-client-dev     # Development
+```
+
+#### Local Installation:
 ```bash
 python main.py
 ```
+
+### Docker Environment Configuration
+
+Create a `.env` file in the project root with your Azure OpenAI credentials:
+```env
+AZURE_OPENAI_WHISPER_API_KEY=your_whisper_api_key_here
+AZURE_OPENAI_WHISPER_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_WHISPER_DEPLOYMENT=your_whisper_deployment_name
+AZURE_OPENAI_GPT_API_KEY=your_gpt_api_key_here
+AZURE_OPENAI_GPT_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_GPT_DEPLOYMENT=your_gpt_deployment_name
+```
+
+### GUI Access for Docker
+
+#### Linux:
+```bash
+# Allow Docker containers to access the display
+xhost +local:docker
+
+# Run the application
+docker-compose up
+```
+
+#### macOS:
+```bash
+# Install XQuartz if not already installed
+brew install --cask xquartz
+
+# Start XQuartz and allow network connections
+open -a XQuartz
+# In XQuartz preferences, enable "Allow connections from network clients"
+
+# Get your IP address
+export DISPLAY=$(ifconfig en0 | grep inet | awk '$1=="inet" {print $2}'):0
+
+# Run the application
+docker-compose up
+```
+
+#### Windows:
+```powershell
+# Install and run an X11 server like VcXsrv, Xming, or X410
+# For VcXsrv: Download from https://sourceforge.net/projects/vcxsrv/
+# For X410: Available in Microsoft Store
+
+# Set the DISPLAY environment variable
+$env:DISPLAY = "host.docker.internal:0"
+
+# Using PowerShell helper script (recommended)
+.\run-docker.ps1
+
+# Or using manual Docker commands
+docker-compose up
+```
+
+**Note for Windows users:** The PowerShell script (`run-docker.ps1`) provides the same functionality as the bash script for Linux/macOS users, including GUI access setup reminders and environment file management.
+
+### Application Features
 
 ### Recording Tab
 1. Click "Start Recording" to begin audio capture
@@ -129,7 +275,7 @@ python test_migration.py
 ### Project Structure
 
 ```
-whisper-client/
+Azure-Client/
 ├── controllers/          # Application controllers
 │   ├── app_controller.py
 │   └── event_system.py
@@ -153,8 +299,61 @@ whisper-client/
 │   ├── models/
 │   ├── services/
 │   └── ui/
+├── Dockerfile           # Docker container configuration
+├── docker-compose.yml   # Docker Compose configuration
+├── .dockerignore        # Docker ignore patterns
 ├── main.py              # Application entry point
 └── requirements.txt     # Dependencies
+```
+
+### Docker Development Workflow
+
+#### Development Environment Setup
+```bash
+# Clone and setup
+git clone <repository-url>
+cd Azure-Client
+
+# Create environment file
+cp .env.sample .env
+# Edit .env with your credentials
+
+# Enable GUI access (Linux/macOS)
+xhost +local:docker
+
+# Start development environment
+docker-compose --profile dev up --build azure-whisper-client-dev
+```
+
+#### Development Commands
+```bash
+# Build container
+docker-compose build
+
+# Run tests in container
+docker-compose run azure-whisper-client python -m pytest tests/ -v
+
+# Access container shell
+docker-compose run azure-whisper-client bash
+
+# View container logs
+docker-compose logs azure-whisper-client
+
+# Stop all containers
+docker-compose down
+```
+
+#### Production Deployment
+```bash
+# Build and run production container
+docker-compose up --build -d
+
+# Monitor application
+docker-compose logs -f azure-whisper-client
+
+# Update application
+docker-compose pull
+docker-compose up -d
 ```
 
 ### Adding New Features
@@ -163,6 +362,7 @@ whisper-client/
 2. **Models**: Define data structures in the models package
 3. **UI**: Add interface components in the ui package
 4. **Tests**: Write comprehensive tests for all new functionality
+5. **Docker**: Update Dockerfile if new system dependencies are needed
 
 ## 📝 Configuration
 
@@ -298,6 +498,47 @@ python test_migration.py
    - Verify Python version is 3.8 or higher
    - Check virtual environment is activated
 
+5. **Docker Issues**:
+   - Ensure Docker is running and accessible
+   - For GUI access, verify X11 forwarding is enabled
+   - Check audio device permissions: `ls -la /dev/snd`
+   - Verify environment file (.env) is properly configured
+
+### Docker Troubleshooting
+
+#### GUI Not Displaying
+```bash
+# Linux: Enable X11 forwarding
+xhost +local:docker
+
+# Check DISPLAY variable
+echo $DISPLAY
+
+# Test X11 access
+docker run --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro alpine sh -c "apk add --no-cache xeyes && xeyes"
+```
+
+#### Audio Not Working
+```bash
+# Check audio devices
+ls -la /dev/snd
+
+# Verify Docker has audio access
+docker run --rm --device /dev/snd -it alpine sh -c "apk add --no-cache alsa-utils && arecord -l"
+```
+
+#### Container Build Issues
+```bash
+# Clean Docker cache
+docker system prune -a
+
+# Rebuild without cache
+docker-compose build --no-cache
+
+# Check container logs
+docker-compose logs azure-whisper-client
+```
+
 ### Detailed Troubleshooting
 
 For comprehensive troubleshooting information, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
@@ -326,10 +567,11 @@ For comprehensive troubleshooting information, see [TROUBLESHOOTING.md](TROUBLES
 6. Update documentation as needed
 7. Submit a pull request
 
-## � Development Setup
+## 📚 Development Setup
 
 For development work:
 
+### Local Development
 ```bash
 # Install development dependencies
 pip install pytest black flake8 coverage
@@ -344,6 +586,22 @@ flake8 .
 # Generate coverage report
 coverage run -m pytest tests/
 coverage report
+```
+
+### Docker Development
+```bash
+# Development environment with hot-reload
+docker-compose --profile dev up --build azure-whisper-client-dev
+
+# Run tests in container
+docker-compose run azure-whisper-client python -m pytest tests/ -v
+
+# Code quality checks in container
+docker-compose run azure-whisper-client black --check .
+docker-compose run azure-whisper-client flake8 .
+
+# Access development container shell
+docker-compose run azure-whisper-client bash
 ```
 
 ## 📄 License

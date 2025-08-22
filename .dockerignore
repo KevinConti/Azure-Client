@@ -1,0 +1,90 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+logs/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Documentation builds
+docs/_build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Application specific
+data/
+temp/
+tmp/
+recordings/
+transcripts/
+
+# Docker specific
+Dockerfile.*
+docker-compose.override.yml
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# README and docs (keep these for documentation in container)
+# README.md
+# DEVELOPER_DOCS.md
+# MAINTENANCE.md
+# TROUBLESHOOTING.md
