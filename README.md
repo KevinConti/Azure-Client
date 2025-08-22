@@ -53,6 +53,8 @@ This application follows a layered architecture with clear separation of concern
    ```
 
 2. **Quick start with Docker:**
+   
+   **Linux/macOS:**
    ```bash
    # Copy environment template
    cp .env.sample .env
@@ -62,6 +64,18 @@ This application follows a layered architecture with clear separation of concern
    
    # Run the application (this will build and start the container)
    ./run-docker.sh
+   ```
+   
+   **Windows (PowerShell):**
+   ```powershell
+   # Copy environment template
+   Copy-Item .env.sample .env
+   
+   # Edit .env with your Azure OpenAI credentials
+   notepad .env
+   
+   # Run the application (this will build and start the container)
+   .\run-docker.ps1
    ```
 
 3. **Alternative Docker commands:**
@@ -120,12 +134,31 @@ This application follows a layered architecture with clear separation of concern
 ### Starting the Application
 
 #### With Docker:
-```bash
-# Production deployment
-docker-compose up
 
-# Development mode
-docker-compose --profile dev up azure-whisper-client-dev
+**Linux/macOS:**
+```bash
+# Using helper script - Production mode
+./run-docker.sh
+
+# Using helper script - Development mode
+./run-docker.sh dev
+
+# Manual commands
+docker-compose up                                              # Production
+docker-compose --profile dev up azure-whisper-client-dev     # Development
+```
+
+**Windows (PowerShell):**
+```powershell
+# Using helper script - Production mode
+.\run-docker.ps1
+
+# Using helper script - Development mode
+.\run-docker.ps1 dev
+
+# Manual commands
+docker-compose up                                              # Production
+docker-compose --profile dev up azure-whisper-client-dev     # Development
 ```
 
 #### Local Installation:
@@ -173,14 +206,22 @@ docker-compose up
 ```
 
 #### Windows:
-```bash
-# Install and run an X11 server like VcXsrv or Xming
-# Set the DISPLAY environment variable
-set DISPLAY=host.docker.internal:0
+```powershell
+# Install and run an X11 server like VcXsrv, Xming, or X410
+# For VcXsrv: Download from https://sourceforge.net/projects/vcxsrv/
+# For X410: Available in Microsoft Store
 
-# Run the application
+# Set the DISPLAY environment variable
+$env:DISPLAY = "host.docker.internal:0"
+
+# Using PowerShell helper script (recommended)
+.\run-docker.ps1
+
+# Or using manual Docker commands
 docker-compose up
 ```
+
+**Note for Windows users:** The PowerShell script (`run-docker.ps1`) provides the same functionality as the bash script for Linux/macOS users, including GUI access setup reminders and environment file management.
 
 ### Application Features
 
