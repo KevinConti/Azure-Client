@@ -52,22 +52,28 @@ This application follows a layered architecture with clear separation of concern
    cd Azure-Client
    ```
 
-2. **Configure environment variables:**
+2. **Quick start with Docker:**
    ```bash
-   # Create environment file
+   # Copy environment template
    cp .env.sample .env
    
    # Edit .env with your Azure OpenAI credentials
    nano .env
+   
+   # Run the application (this will build and start the container)
+   ./run-docker.sh
    ```
 
-3. **Build and run with Docker:**
+3. **Alternative Docker commands:**
    ```bash
-   # For production use
-   docker-compose up --build
+   # Manual setup
+   docker compose up --build
    
-   # For development with hot-reload
-   docker-compose --profile dev up --build azure-whisper-client-dev
+   # Development mode with hot-reload
+   docker compose --profile dev up --build azure-whisper-client-dev
+   
+   # Production deployment
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
    ```
 
 4. **Enable GUI access (Linux/macOS):**

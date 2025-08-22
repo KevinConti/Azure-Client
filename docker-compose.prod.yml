@@ -1,0 +1,60 @@
+# Production docker-compose override
+# Use: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  azure-whisper-client:
+    # Use production-ready settings
+    restart: always
+    
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    
+    # Production logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import main; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Remove development volumes
+    volumes:
+      # X11 forwarding for GUI
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      
+      # Audio device access
+      - /dev/snd:/dev/snd
+      
+      # Persistent data directory only
+      - ./data:/app/data
+    
+    # Production environment variables
+    environment:
+      # Azure OpenAI Configuration (from .env file)
+      - AZURE_OPENAI_WHISPER_API_KEY=${AZURE_OPENAI_WHISPER_API_KEY}
+      - AZURE_OPENAI_WHISPER_ENDPOINT=${AZURE_OPENAI_WHISPER_ENDPOINT}
+      - AZURE_OPENAI_WHISPER_DEPLOYMENT=${AZURE_OPENAI_WHISPER_DEPLOYMENT}
+      - AZURE_OPENAI_GPT_API_KEY=${AZURE_OPENAI_GPT_API_KEY}
+      - AZURE_OPENAI_GPT_ENDPOINT=${AZURE_OPENAI_GPT_ENDPOINT}
+      - AZURE_OPENAI_GPT_DEPLOYMENT=${AZURE_OPENAI_GPT_DEPLOYMENT}
+      
+      # Display configuration
+      - DISPLAY=${DISPLAY:-:0}
+      
+      # Production settings
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO

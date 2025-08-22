@@ -26,6 +26,257 @@ Before diving into specific issues, run these diagnostic commands:
    pip check
    ```
 
+5. **Docker Quick Check**:
+   ```bash
+   # Check if Docker is running
+   docker --version && docker compose version
+   
+   # Test container build
+   ./run-docker.sh build
+   
+   # Verify environment configuration
+   ./run-docker.sh help
+   ```
+
+## 🐳 Docker Troubleshooting
+
+### Docker Installation and Setup Issues
+
+#### ❌ Docker Not Found
+**Error**: `docker: command not found` or `docker compose: command not found`
+
+**Solution**:
+1. **Install Docker**: Visit [docker.com](https://docker.com) to install Docker Desktop
+2. **Verify Installation**:
+   ```bash
+   docker --version
+   docker compose version
+   ```
+3. **Start Docker**: Make sure Docker Desktop is running
+
+#### ❌ Permission Denied (Linux)
+**Error**: `permission denied while trying to connect to the Docker daemon`
+
+**Solution**:
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+
+# Log out and back in, or run:
+newgrp docker
+
+# Verify access
+docker run hello-world
+```
+
+### GUI and Display Issues
+
+#### ❌ GUI Not Displaying
+**Error**: Application runs but no GUI appears
+
+**Solutions by Operating System**:
+
+**Linux**:
+```bash
+# Enable X11 forwarding
+xhost +local:docker
+
+# Check DISPLAY variable
+echo $DISPLAY
+
+# Test X11 connection
+docker run --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro alpine sh -c "apk add --no-cache xeyes && xeyes"
+```
+
+**macOS**:
+```bash
+# Install XQuartz
+brew install --cask xquartz
+
+# Start XQuartz and enable network connections
+open -a XQuartz
+# In XQuartz preferences: Security tab > "Allow connections from network clients"
+
+# Set DISPLAY variable
+export DISPLAY=$(ifconfig en0 | grep inet | awk '$1=="inet" {print $2}'):0
+
+# Test connection
+./run-docker.sh run
+```
+
+**Windows**:
+```powershell
+# Install X server (VcXsrv, Xming, or X410)
+# Configure X server to allow connections
+
+# Set DISPLAY variable
+$env:DISPLAY = "host.docker.internal:0"
+
+# Run application
+./run-docker.sh run
+```
+
+### Audio Issues
+
+#### ❌ No Audio Access
+**Error**: Audio recording not working in container
+
+**Solution**:
+```bash
+# Check audio devices
+ls -la /dev/snd
+
+# Verify Docker has audio access
+docker run --rm --device /dev/snd -it alpine sh -c "apk add --no-cache alsa-utils && arecord -l"
+
+# Run with proper audio permissions
+docker compose up  # Already configured in docker-compose.yml
+```
+
+#### ❌ Audio Permission Denied
+**Error**: `Permission denied: '/dev/snd/controlC0'`
+
+**Solution**:
+```bash
+# Add user to audio group (Linux)
+sudo usermod -aG audio $USER
+
+# Check audio group membership
+groups $USER
+
+# Restart Docker container
+docker compose restart azure-whisper-client
+```
+
+### Container Build and Runtime Issues
+
+#### ❌ Build Fails with SSL Errors
+**Error**: `SSL: CERTIFICATE_VERIFY_FAILED`
+
+**Solution**:
+- The Dockerfile includes SSL trust configuration
+- If issues persist, check corporate firewall/proxy settings
+- Use `--build-arg` to pass proxy settings if needed
+
+#### ❌ Python Dependencies Fail to Install
+**Error**: `Failed building wheel for pyaudio`
+
+**Solution**:
+- The Dockerfile includes necessary build tools (gcc, python3-dev)
+- If issues persist, try building with `--no-cache`:
+  ```bash
+  docker compose build --no-cache
+  ```
+
+#### ❌ Container Memory Issues
+**Error**: Container runs out of memory during processing
+
+**Solution**:
+```bash
+# Check container memory usage
+docker stats azure-whisper-client
+
+# Increase Docker memory limits (Docker Desktop settings)
+# Or modify docker-compose.yml:
+# deploy:
+#   resources:
+#     limits:
+#       memory: 4G
+```
+
+### Environment Configuration Issues
+
+#### ❌ Environment Variables Not Loading
+**Error**: Configuration validation fails in container
+
+**Solution**:
+1. **Check .env file exists**:
+   ```bash
+   ls -la .env
+   ```
+
+2. **Verify .env format**:
+   ```bash
+   cat .env
+   # Should contain:
+   # AZURE_OPENAI_WHISPER_API_KEY=your_key
+   # No spaces around = signs
+   # No quotes needed
+   ```
+
+3. **Test environment loading**:
+   ```bash
+   docker compose run --rm azure-whisper-client env | grep AZURE
+   ```
+
+#### ❌ Invalid Azure OpenAI Configuration
+**Error**: API calls fail from container
+
+**Solution**:
+1. **Test configuration locally first**
+2. **Verify network connectivity**:
+   ```bash
+   docker compose run --rm azure-whisper-client curl -I https://your-resource.openai.azure.com/
+   ```
+3. **Check API key format and permissions**
+
+### Development and Debugging
+
+#### ❌ Hot Reload Not Working
+**Error**: Code changes not reflected in development container
+
+**Solution**:
+```bash
+# Use development profile
+docker compose --profile dev up azure-whisper-client-dev
+
+# Verify volume mounts
+docker compose run --rm azure-whisper-client-dev ls -la /app
+```
+
+#### ❌ Can't Access Container Shell
+**Error**: Need to debug inside container
+
+**Solution**:
+```bash
+# Access running container
+docker compose exec azure-whisper-client bash
+
+# Or start new container with shell
+docker compose run --rm azure-whisper-client bash
+
+# Use convenience script
+./run-docker.sh shell
+```
+
+### Performance Issues
+
+#### ❌ Slow Container Performance
+**Error**: Application runs slowly in container
+
+**Solutions**:
+1. **Increase Docker resources** (CPU, Memory in Docker Desktop)
+2. **Check host system resources**:
+   ```bash
+   docker stats azure-whisper-client
+   htop  # or top
+   ```
+3. **Optimize Docker settings** for your platform
+
+#### ❌ Large Image Size
+**Error**: Docker image too large
+
+**Solution**:
+```bash
+# Check image size
+docker images azure-whisper-client
+
+# Clean up unused images
+docker image prune -f
+
+# Use multi-stage builds (future optimization)
+```
+
 ## 🚨 Common Issues and Solutions
 
 ### Configuration Issues
